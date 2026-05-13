@@ -432,6 +432,7 @@ const UI = {
         // On agrège les nouveautés pour communiquer un chiffre global à l'utilisateur
         let totalNewQuestions = 0;
         let newPacks = 0;
+        let updatedPacksCount = 0;
         let latestUpdateDate = null;
 
         tableData.forEach(item => {
@@ -449,6 +450,7 @@ const UI = {
                 newPacks++;
             } else if (delta > 0) {
                 totalNewQuestions += delta;
+                updatedPacksCount++;
             } else {
                 // Vérification par date si le compte est identique
                 const isDateUpdated = item.updated && prevData.updated && 
@@ -484,13 +486,13 @@ const UI = {
             const telemetryBar = document.createElement('div');
             telemetryBar.className = 'bg-slate-800 text-slate-200 text-[10px] font-mono px-3 py-2 rounded-md mb-4 flex items-center justify-between border border-slate-700 shadow-inner';
             
-            let statusMsg = `> ANALYSE : `;
-            if (newPacks > 0) statusMsg += `${newPacks} NOUVEAU(X) PAQUET(S) `;
-            if (totalNewQuestions > 0) statusMsg += `${newPacks > 0 ? '| ' : ''}${totalNewQuestions} CARTE(S) AJOUTÉE(S) PAR MISE À JOUR`;
+            let statusMsg = `[LOGS] `;
+            if (newPacks > 0) statusMsg += `${newPacks} NOUVEAU(X) SUJET(S) DÉTECTÉ(S) `;
+            if (totalNewQuestions > 0) statusMsg += `${newPacks > 0 ? '| ' : ''}${totalNewQuestions} NOUVELLES QUESTIONS DISPONIBLES DANS ${updatedPacksCount} PAQUET(S)`;
             
-            const dateTag = latestUpdateDate ? `[REL: ${latestUpdateDate.toLocaleDateString()}] ` : '';
+            const dateTag = latestUpdateDate ? `[DERNIÈRE MAJ: ${latestUpdateDate.toLocaleString()}] ` : '';
             telemetryBar.innerHTML = `
-                <span class="flex items-center gap-2"><span class="w-2 h-2 bg-red-500 rounded-full animate-ping"></span> ${statusMsg}</span>
+                <span class="flex items-center gap-2"><span class="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span> ${statusMsg}</span>
                 <span class="text-slate-500">${dateTag}[SYNC_OK]</span>
             `;
             explorerContainer.appendChild(telemetryBar);
@@ -536,28 +538,24 @@ const UI = {
                 const isNew = !seenFiles.has(item.value);
                 if (isNew) newFilesDetected.push(item.value);
 
-                // Vérifier la mise à jour de contenu si le count est le même et que ce n'est pas un nouveau fichier
-                const isContentUpdated = !isNew && delta === 0 && item.updated && prevUpdated && new Date(item.updated) > new Date(prevUpdated);
-
-                const updateLabel = item.updated ? new Date(item.updated).toLocaleDateString() : 'Inconnu';
-
                 if(select.value === item.value) {
                     card.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
                 }
 
                 const colors = UI.getDomainColor(item.domain);
-                
-                let notificationBadge = '';
+
+                // Définition de la marque visuelle (Badge statique)
+                let statusBadge = '';
                 if (isNew) {
-                    notificationBadge = `<span class="absolute -top-1 -right-1 flex h-3 w-3" title="Nouveau paquet ajouté"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>`;
+                    // Badge bleu pour les nouveaux paquets
+                    statusBadge = `<span class="absolute -top-2 -right-1 bg-blue-600 text-white text-[7px] px-1.5 py-0.5 rounded-full font-bold border border-white shadow-sm uppercase tracking-tighter">Nouveau</span>`;
                 } else if (delta > 0) {
-                    notificationBadge = `<span class="absolute -top-1 -left-1 bg-red-600 text-white text-[9px] font-bold px-1.5 rounded-full animate-pulse shadow-sm border border-white" title="${delta} nouvelles questions depuis le ${updateLabel}">+${delta}</span>`;
-                } else if (isContentUpdated) {
-                    notificationBadge = `<span class="absolute -top-1 -left-1 bg-blue-500 text-white text-[10px] font-bold px-1.5 rounded-full animate-pulse shadow-sm border border-white">🔄</span>`;
+                    // Badge ambre/orange pour les mises à jour de contenu (ajouts de questions)
+                    statusBadge = `<span class="absolute -top-2 -right-1 bg-amber-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold border border-white shadow-sm">+${delta}</span>`;
                 }
 
                 card.innerHTML = `
-                    ${notificationBadge}
+                    ${statusBadge}
                     <div class="flex flex-col h-full">
                         <div class="font-medium text-gray-800 text-xs leading-tight group-hover:text-blue-700 break-words mb-1" title="${item.name}">
                             ${item.name}

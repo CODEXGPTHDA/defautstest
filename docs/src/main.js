@@ -9,7 +9,9 @@ const STORAGE_KEYS = {
     CONFIG: 'leitner_config',
     CARD_STATE: 'leitner_card_state',
     DECK_STATS: 'leitner_deck_stats',
-    BOX_INTERVALS: 'leitner_box_intervals' // Nouvelle clé pour les intervalles personnalisés
+    BOX_INTERVALS: 'leitner_box_intervals', // Clé pour les intervalles personnalisés
+    SEEN_FILES: 'leitner_seen_files', // Fichiers déjà vus par l'utilisateur
+    CARD_COUNTS: 'leitner_card_counts' // { count: number, updated: string } par fichier pour détecter les ajouts et mises à jour
 };
 
 const APP_STATE = {
@@ -337,6 +339,12 @@ const UI = {
         select.style.display = 'none';
         select.innerHTML = '<option value="">-- Choisir un paquet --</option>';
         
+        // Récupérer les fichiers déjà connus pour identifier les nouveaux
+        const seenFiles = new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.SEEN_FILES) || '[]'));
+        const lastCounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.CARD_COUNTS) || '{}');
+        const newFilesDetected = [];
+        // const allManifestFiles = []; // Pas nécessaire ici, car `uniqueFiles` contient déjà les données du manifeste
+
         // 2. Conteneur du nouvel explorateur
         let explorerContainer = document.getElementById('csv-explorer-container');
         if (!explorerContainer) {
@@ -346,6 +354,7 @@ const UI = {
             select.parentNode.insertBefore(explorerContainer, select.nextSibling);
         }
         explorerContainer.innerHTML = '';
+        select.innerHTML = '<option value="">-- Choisir un paquet --</option>'; // Vider le select caché pour le repeupler
 
         const isLocal = window.location.hostname === 'localhost' || 
                        window.location.hostname === '127.0.0.1' || 
@@ -357,11 +366,13 @@ const UI = {
             const p = f.publicPath || f.download_url || '';
             const normalizedPath = p.replace(/\\/g, '/');
             
-            if (isLocal) {
-                return normalizedPath.includes('csv/') && normalizedPath.toLowerCase().endsWith('.csv');
+            // Toujours filtrer pour les fichiers dans 'csv/' et avec l'extension .csv
+            const isCsvFile = normalizedPath.includes('csv/') && normalizedPath.toLowerCase().endsWith('.csv');
+            if (isCsvFile) {
+                // allManifestFiles.push(f); // Pas nécessaire car uniqueFiles sera construit à partir de filteredFiles
+                return true;
             }
-            
-            return /(?:^|\/)csv\/[^/]+\.csv$/i.test(normalizedPath);
+            return false;
         });
 
         // Déduplication stricte
@@ -375,18 +386,16 @@ const UI = {
             }
         });
 
-        uniqueFiles.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+        // Trier par domaine puis par nom pour une meilleure organisation visuelle
+        uniqueFiles.sort((a, b) => {
+            const domainA = UI.getDomainFromFilename(a.name);
+            const domainB = UI.getDomainFromFilename(b.name);
+            if (domainA !== domainB) return domainA.localeCompare(domainB, 'fr');
+            return a.name.localeCompare(b.name, 'fr');
+        });
 
         // 3. Peupler le select caché (pour la logique interne) et préparer les données du tableau
         const tableData = uniqueFiles.map(f => {
-            // Ajout au select caché
-            const option = document.createElement('option');
-            option.value = f.download_url || f.publicPath;
-            option.textContent = f.name;
-            option.dataset.name = f.name;
-            if(options.selectedName === f.name) option.selected = true;
-            select.appendChild(option);
-
             // Préparation métadonnées pour le tableau
             let cleanName = f.name.replace('.csv', '');
             if (cleanName.startsWith('csv/')) cleanName = cleanName.substring(4);
@@ -402,8 +411,49 @@ const UI = {
                 raw: f,
                 name: cleanName,
                 domain: domain,
-                value: f.download_url || f.publicPath
+                value: f.download_url || f.publicPath, // C'est le chemin complet utilisé comme clé pour localStorage
+                count: f.count || 0, // Count du manifeste
+                updated: f.updated || '' // Timestamp du manifeste
             };
+        });
+
+        // Peupler le select caché après le tri et le traitement
+        tableData.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.value;
+            option.textContent = item.name;
+            option.dataset.name = item.name;
+            option.dataset.updated = item.updated; // Stocker le timestamp mis à jour
+            if(options.selectedName === item.name) option.selected = true;
+            select.appendChild(option);
+        });
+
+        // --- LOGIQUE DE TÉLÉMÉTRIE (DevOps Style) ---
+        // On agrège les nouveautés pour communiquer un chiffre global à l'utilisateur
+        let totalNewQuestions = 0;
+        let newPacks = 0;
+        let latestUpdateDate = null;
+
+        tableData.forEach(item => {
+            const prevData = lastCounts[item.value] || { count: 0, updated: '' };
+            const delta = item.count > prevData.count ? item.count - prevData.count : 0;
+            const isNew = !seenFiles.has(item.value);
+            
+            // Tracking de la date la plus récente pour le rapport
+            if (item.updated) {
+                const d = new Date(item.updated);
+                if (!latestUpdateDate || d > latestUpdateDate) latestUpdateDate = d;
+            }
+
+            if (isNew) {
+                newPacks++;
+            } else if (delta > 0) {
+                totalNewQuestions += delta;
+            } else {
+                // Vérification par date si le compte est identique
+                const isDateUpdated = item.updated && prevData.updated && 
+                                    new Date(item.updated) > new Date(prevData.updated);
+            }
         });
 
         // 4. Construction de l'interface Data Explorer
@@ -428,6 +478,23 @@ const UI = {
         controlsDiv.appendChild(searchInput);
         controlsDiv.appendChild(domainFilter);
         explorerContainer.appendChild(controlsDiv);
+
+        // Injection du bandeau de résumé subtil
+        if (totalNewQuestions > 0 || newPacks > 0) {
+            const telemetryBar = document.createElement('div');
+            telemetryBar.className = 'bg-slate-800 text-slate-200 text-[10px] font-mono px-3 py-2 rounded-md mb-4 flex items-center justify-between border border-slate-700 shadow-inner';
+            
+            let statusMsg = `> ANALYSE : `;
+            if (newPacks > 0) statusMsg += `${newPacks} NOUVEAU(X) PAQUET(S) `;
+            if (totalNewQuestions > 0) statusMsg += `${newPacks > 0 ? '| ' : ''}${totalNewQuestions} CARTE(S) AJOUTÉE(S) PAR MISE À JOUR`;
+            
+            const dateTag = latestUpdateDate ? `[REL: ${latestUpdateDate.toLocaleDateString()}] ` : '';
+            telemetryBar.innerHTML = `
+                <span class="flex items-center gap-2"><span class="w-2 h-2 bg-red-500 rounded-full animate-ping"></span> ${statusMsg}</span>
+                <span class="text-slate-500">${dateTag}[SYNC_OK]</span>
+            `;
+            explorerContainer.appendChild(telemetryBar);
+        }
 
         // Grille compacte (remplace le tableau)
         const gridWrapper = document.createElement('div');
@@ -459,23 +526,59 @@ const UI = {
                 const card = document.createElement('div');
                 card.className = 'bg-white border border-gray-200 rounded p-2 cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all shadow-sm flex flex-col justify-between group relative';
                 
+                // LOGIQUE DELTA DEVOPS
+                const prevData = lastCounts[item.value] || { count: 0, updated: '' };
+                const prevCount = prevData.count;
+                const prevUpdated = prevData.updated;
+
+                const delta = item.count > prevCount ? item.count - prevCount : 0;
+                
+                const isNew = !seenFiles.has(item.value);
+                if (isNew) newFilesDetected.push(item.value);
+
+                // Vérifier la mise à jour de contenu si le count est le même et que ce n'est pas un nouveau fichier
+                const isContentUpdated = !isNew && delta === 0 && item.updated && prevUpdated && new Date(item.updated) > new Date(prevUpdated);
+
+                const updateLabel = item.updated ? new Date(item.updated).toLocaleDateString() : 'Inconnu';
+
                 if(select.value === item.value) {
                     card.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
                 }
 
                 const colors = UI.getDomainColor(item.domain);
+                
+                let notificationBadge = '';
+                if (isNew) {
+                    notificationBadge = `<span class="absolute -top-1 -right-1 flex h-3 w-3" title="Nouveau paquet ajouté"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>`;
+                } else if (delta > 0) {
+                    notificationBadge = `<span class="absolute -top-1 -left-1 bg-red-600 text-white text-[9px] font-bold px-1.5 rounded-full animate-pulse shadow-sm border border-white" title="${delta} nouvelles questions depuis le ${updateLabel}">+${delta}</span>`;
+                } else if (isContentUpdated) {
+                    notificationBadge = `<span class="absolute -top-1 -left-1 bg-blue-500 text-white text-[10px] font-bold px-1.5 rounded-full animate-pulse shadow-sm border border-white">🔄</span>`;
+                }
 
                 card.innerHTML = `
-                    <div class="font-medium text-gray-800 text-xs leading-tight group-hover:text-blue-700 break-words mb-1" title="${item.name}">
-                        ${item.name}
-                    </div>
-                    <div class="flex justify-end">
-                        <span class="inline-block text-[9px] px-1.5 rounded border" style="background-color: ${colors.bg}; color: ${colors.text}; border-color: ${colors.border}">${item.domain}</span>
+                    ${notificationBadge}
+                    <div class="flex flex-col h-full">
+                        <div class="font-medium text-gray-800 text-xs leading-tight group-hover:text-blue-700 break-words mb-1" title="${item.name}">
+                            ${item.name}
+                        </div>
+                        <div class="mt-auto flex justify-between items-center pt-1 border-t border-gray-50">
+                            <span class="text-[8px] text-gray-400 font-mono">${item.count} q.</span>
+                            <span class="inline-block text-[9px] px-1.5 rounded border" style="background-color: ${colors.bg}; color: ${colors.text}; border-color: ${colors.border}">${item.domain}</span>
+                        </div>
                     </div>
                 `;
                 
                 const loadPackage = (e) => {
                     e.stopPropagation();
+                    // Marquer comme vu au clic
+                    if (isNew) {
+                        const currentSeen = JSON.parse(localStorage.getItem(STORAGE_KEYS.SEEN_FILES) || '[]');
+                        if (!currentSeen.includes(item.value)) {
+                            currentSeen.push(item.value);
+                            localStorage.setItem(STORAGE_KEYS.SEEN_FILES, JSON.stringify(currentSeen));
+                        }
+                    }
                     select.value = item.value;
                     // Déclenche l'événement change pour que CoreApp réagisse
                     select.dispatchEvent(new Event('change'));
@@ -764,27 +867,50 @@ const CoreApp = {
             const url = e.target.value;
             if(!url) return;
             const selectedOption = e.target.options[e.target.selectedIndex];
-            const filename = selectedOption.dataset.name || selectedOption.value || "unknown.csv";
+            const filename = selectedOption.dataset.name || selectedOption.value || "unknown.csv"; // Nom d'affichage
+            const fileKey = selectedOption.value; // Chemin complet utilisé comme clé pour localStorage
+            const manifestUpdatedTimestamp = selectedOption.dataset.updated || ''; // Timestamp du manifeste
 
             try {
                 const status = document.getElementById('csv-load-status');
                 status.classList.remove('hidden');
                 status.textContent = "Chargement...";
                 status.className = "mt-2 w-full text-sm text-blue-600";
-                
+
                 // Ajout d'un cache buster pour être sûr de ne pas taper dans un cache 404 ou périmé
                 const fetchUrl = new URL(url, window.location.href);
                 fetchUrl.searchParams.set('_t', Date.now());
                 const response = await fetch(fetchUrl.toString());
                 if(!response.ok) throw new Error("Fichier introuvable");
-                
+
                 const text = await response.text();
                 let data = CoreApp.parseCSV(text);
                 data = CardPersistence.applyState(filename, data);
-                
+
                 CoreApp.csvData = data;
                 CoreApp.csvData.filename = filename;
                 CoreApp.persistSessionDeck();
+
+                // Détection de nouvelles flashcards ou mise à jour de contenu
+                const cardCounts = JSON.parse(localStorage.getItem(STORAGE_KEYS.CARD_COUNTS) || '{}');
+                const prevData = cardCounts[fileKey] || { count: 0, updated: '' };
+                const prevCount = prevData.count;
+                const prevUpdated = prevData.updated;
+
+                if (prevCount > 0 && data.length > prevCount) { // Nouvelles cartes ajoutées
+                    const diff = data.length - prevCount;
+                    setTimeout(() => {
+                        alert(`✨ Super ! ${diff} nouvelles flashcards ont été ajoutées à ce paquet depuis votre dernière visite.`);
+                    }, 500);
+                } else if (manifestUpdatedTimestamp && prevUpdated && new Date(manifestUpdatedTimestamp) > new Date(prevUpdated)) { // Contenu mis à jour
+                    setTimeout(() => {
+                        alert(`🔄 Ce paquet a été mis à jour le ${new Date(manifestUpdatedTimestamp).toLocaleDateString()} !`);
+                    }, 500);
+                }
+
+                cardCounts[fileKey] = { count: data.length, updated: manifestUpdatedTimestamp }; // Stocker le count réel et le timestamp du manifeste
+                localStorage.setItem(STORAGE_KEYS.CARD_COUNTS, JSON.stringify(cardCounts)); // Persister les données mises à jour
+
                 try {
                     CoreApp.validateImageStructure(filename);
                 } catch (e) {

@@ -25,9 +25,12 @@
             if (response.ok) { // Si le manifeste existe et est valide
                 const jsonFiles = await response.json();
                 jsonFiles.forEach(f => {
-                    const filenameOnly = f.split('/').pop(); // Extraire seulement le nom du fichier pour une déduplication cohérente
+                    const path = typeof f === 'string' ? f : f.path; // Extraire le chemin
+                    const count = typeof f === 'object' ? f.count : 0; // Extraire le count
+                    const updated = typeof f === 'object' ? f.updated : ''; // Extraire le timestamp
+                    const filenameOnly = path.split('/').pop();
                     if (!seen.has(filenameOnly)) {
-                        files.push({ name: filenameOnly, download_url: f, source: 'manifest' });
+                        files.push({ name: filenameOnly, download_url: path, count: count, updated: updated, source: 'manifest' }); // Inclure le timestamp
                         seen.add(filenameOnly);
                     }
                 });
@@ -108,6 +111,7 @@
                     option.value = getNoCacheUrl(resolvedUrl); // On ajoute l'anti-cache ici aussi
                     option.textContent = file.name;
                     option.dataset.name = file.name;
+                    option.dataset.updated = file.updated || ''; // Stocker le timestamp dans le dataset
                     if (file.name === preferredName) option.selected = true;
                     select.appendChild(option);
                 });

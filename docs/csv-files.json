@@ -1,15 +1,67 @@
 [
-  "csv/EITPF_planformationPELE.csv",
-  "csv/ELECTRO_formules.csv",
-  "csv/ELECTRO_generalites.csv",
-  "csv/ELECTRONIQUE_generalites.csv",
-  "csv/MATERIEL_cfc_pele.csv",
-  "csv/NIBT_definitions.csv",
-  "csv/NIBT_oibt_question_1.csv",
-  "csv/NIBT_questions_generales.csv",
-  "csv/NIBT_tableaux_figures.csv",
-  "csv/SIA_questions_2011_2023.csv",
-  "csv/TELECOM_acronymes.csv",
-  "csv/TELECOM_dit.csv",
-  "csv/TELECOM_figures.csv"
+  {
+    "path": "csv/EITPF_planformationPELE.csv",
+    "count": 97,
+    "updated": "2026-03-07 08:25:17"
+  },
+  {
+    "path": "csv/ELECTRO_formules.csv",
+    "count": 31,
+    "updated": "2026-03-10 23:24:48"
+  },
+  {
+    "path": "csv/ELECTRO_generalites.csv",
+    "count": 66,
+    "updated": "2026-05-13 01:32:47"
+  },
+  {
+    "path": "csv/ELECTRONIQUE_generalites.csv",
+    "count": 20,
+    "updated": "2026-03-10 22:53:57"
+  },
+  {
+    "path": "csv/MATERIEL_cfc_pele.csv",
+    "count": 47,
+    "updated": "2026-05-12 00:14:51"
+  },
+  {
+    "path": "csv/NIBT_definitions.csv",
+    "count": 254,
+    "updated": "2025-09-01 23:22:43"
+  },
+  {
+    "path": "csv/NIBT_oibt_question_1.csv",
+    "count": 46,
+    "updated": "2026-01-22 09:57:50"
+  },
+  {
+    "path": "csv/NIBT_questions_generales.csv",
+    "count": 20,
+    "updated": "2026-02-03 07:02:14"
+  },
+  {
+    "path": "csv/NIBT_tableaux_figures.csv",
+    "count": 65,
+    "updated": "2026-01-25 19:05:54"
+  },
+  {
+    "path": "csv/SIA_questions_2011_2023.csv",
+    "count": 47,
+    "updated": "2026-05-13 01:33:15"
+  },
+  {
+    "path": "csv/TELECOM_acronymes.csv",
+    "count": 109,
+    "updated": "2026-01-20 18:34:59"
+  },
+  {
+    "path": "csv/TELECOM_dit.csv",
+    "count": 13,
+    "updated": "2026-03-03 01:18:56"
+  },
+  {
+    "path": "csv/TELECOM_figures.csv",
+    "count": 4,
+    "updated": "2026-02-05 08:37:03"
+  }
 ]

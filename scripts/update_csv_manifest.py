@@ -8,24 +8,38 @@ in the `docs/` folder. Run it whenever you add or remove a CSV file.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 
-def discover_csv_files(base_dir: Path) -> list[str]:
-    csv_files: list[str] = []
+def discover_csv_files(base_dir: Path) -> list[dict[str, Any]]:
+    csv_files: list[dict[str, Any]] = []
     csv_dir = base_dir / 'csv'
     if not csv_dir.exists():
         return []
     for path in sorted(csv_dir.glob('*.csv')):
         if path.is_file():
-            csv_files.append(f'csv/{path.name}')
+            # Lecture pour compter les cartes (nombre de lignes non vides - 1 pour l'en-tête)
+            content = path.read_text(encoding='utf-8')
+            lines = [line for line in content.splitlines() if line.strip()]
+            card_count = max(0, len(lines) - 1)
+
+            # Récupération de la date de modification (format ISO YYYY-MM-DD HH:MM:SS)
+            mtime = path.stat().st_mtime
+            updated_date = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+
+            csv_files.append({
+                "path": f"csv/{path.name}",
+                "count": card_count,
+                "updated": updated_date
+            })
     return csv_files
 
 
-def write_manifest(json_path: Path, files: Iterable[str]) -> None:
+def write_manifest(json_path: Path, files: Iterable[dict[str, Any]]) -> None:
     payload = list(files)
     json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
 

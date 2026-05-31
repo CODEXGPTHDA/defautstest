@@ -18,5 +18,10 @@
     "path": "csv/NIBT_tableaux_figures.csv",
     "count": 65,
     "updated": "2026-05-31 10:01:59"
+  },
+  {
+    "path": "csv/NIBTELECTRO_DEFAUTS.csv",
+    "count": 3,
+    "updated": "2026-05-31 12:39:06"
   }
 ]

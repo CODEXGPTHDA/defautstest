@@ -1,25 +1,5 @@
 [
   {
-    "path": "csv/NIBT_definitions.csv",
-    "count": 254,
-    "updated": "2026-05-31 10:01:59"
-  },
-  {
-    "path": "csv/NIBT_oibt_question_1.csv",
-    "count": 46,
-    "updated": "2026-05-31 10:01:59"
-  },
-  {
-    "path": "csv/NIBT_questions_generales.csv",
-    "count": 20,
-    "updated": "2026-05-31 10:01:59"
-  },
-  {
-    "path": "csv/NIBT_tableaux_figures.csv",
-    "count": 65,
-    "updated": "2026-05-31 10:01:59"
-  },
-  {
     "path": "csv/NIBTELECTRO_DEFAUTS.csv",
     "count": 3,
     "updated": "2026-05-31 12:39:06"
